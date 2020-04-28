@@ -1,2 +1,6 @@
-# organizator-server-actix
-The organizator server implemented in Rust/Actix-web
+# Organizator Rust Server
+
+Rust implementation of the Organizator server using actix-web
+
+
+
