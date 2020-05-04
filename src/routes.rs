@@ -68,3 +68,9 @@ pub async fn search_memo (
     let owner = User { id: owner_entry.user_id, username: owner_entry.title};
     Ok(HttpResponse::Ok().json(MemoTitleList { memos: titles, user: owner }))
 }
+
+#[get("/memo/{id}")]
+pub async fn get_memo(id: actix_web::web::Path<i32>, security: Security, db_pool: Data<Pool>) -> Result<HttpResponse, OrganizatorError> {
+    let get_memo = db::get_memo(db_pool.into_inner(), id.into_inner(), security).await?;
+    Ok(HttpResponse::Ok().json(get_memo))
+}

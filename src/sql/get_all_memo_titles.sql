@@ -10,7 +10,7 @@ from memo
   where memo.group_id in
     (
       select memo_acl.memo_group_id
-      from user_group,
+       from user_group,
             user_group_detail,
             memo_acl,
             users

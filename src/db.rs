@@ -1,4 +1,4 @@
-use crate::{errors::OrganizatorError, models::{ User, MemoTitle}};
+use crate::{errors::OrganizatorError, models::{ User, MemoTitle, GetMemo}};
 use crate::routes::{ GetUserQuery, GetAllMemoTitlesQuery, SearchMemoQuery,  };
 use deadpool_postgres::Pool;
 use tokio_pg_mapper::FromTokioPostgresRow;
@@ -53,10 +53,10 @@ impl SearchMemoQuery {
 }
 
 pub async fn search_memo(pool: Arc<Pool>, query: SearchMemoQuery, security: Security) -> Result<Vec<MemoTitle>, OrganizatorError> {
-    let _stmt = query.get_statement();
+    let sql = query.get_statement();
 
     let client = pool.get().await?;
-    let stmt = client.prepare_typed(&_stmt, &[Type::VARCHAR]).await.unwrap();
+    let stmt = client.prepare_typed(&sql, &[Type::VARCHAR]).await.unwrap();
 
 
     client.query(
@@ -67,4 +67,17 @@ pub async fn search_memo(pool: Arc<Pool>, query: SearchMemoQuery, security: Secu
     .map(|row| MemoTitle::from_row_ref(row).map_err(OrganizatorError::from))
     .collect()
 
+}
+
+pub async fn get_memo(pool: Arc<Pool>, id: i32, security: Security) -> Result<GetMemo, OrganizatorError>{
+    let client = pool.get().await?;
+    let stmt = client.prepare_typed("select * from get_memo($1, $2);", &[Type::INT4, Type::VARCHAR]).await.unwrap();
+
+    client.query(
+        &stmt,
+        &[&id, &String::from(&security.user_name.clone().unwrap())]
+    ).await?
+    .iter_mut()
+    .map(move |row| GetMemo::from_row(row).map_err(OrganizatorError::from))
+    .next().unwrap()
 }

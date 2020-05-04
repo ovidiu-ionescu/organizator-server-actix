@@ -33,7 +33,7 @@ impl Security {
 
 impl Drop for Security {
     fn drop(&mut self) {
-        println!("Dropping security");
+        //println!("Dropping security");
     }
 }
 
@@ -96,14 +96,14 @@ where
 
         req.extensions_mut().insert(Security::from(user_name));
 
-        println!("Hi from start. You requested: {}", req.path());
+        //println!("Hi from start. You requested: {}", req.path());
 
         let fut = self.service.call(req);
 
         Box::pin(async move {
             let res = fut.await?;
 
-            println!("Hi from response");
+            //println!("Hi from response");
             Ok(res)
         })
     }

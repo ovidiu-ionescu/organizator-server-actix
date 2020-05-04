@@ -1,0 +1,1 @@
+select * from get_memo($1, $2);
