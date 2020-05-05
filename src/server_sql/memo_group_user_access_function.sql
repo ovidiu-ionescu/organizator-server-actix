@@ -1,7 +1,8 @@
 ﻿DROP FUNCTION memo_group_user_access;
 CREATE OR REPLACE FUNCTION memo_group_user_access (
-  p_user_id users.id%TYPE, 
-  p_memo_group_id memo_group.id%TYPE) 
+  p_memo_group_id memo_group.id%TYPE,
+  p_user_id users.id%TYPE
+  )
   RETURNS memo_acl.access%TYPE AS $$
 DECLARE
   v_access memo_acl.access%TYPE;

@@ -30,7 +30,7 @@ CREATE OR REPLACE FUNCTION memo_write(
   AS $$
   DECLARE
     v_empty_content      boolean;
-    v_old_memo_title     p_memo_title%TYPE;
+    v_old_title     p_memo_title%TYPE;
     v_old_memotext       p_memo_memotext%TYPE;
     v_old_memo_group_id  p_memo_group_id%TYPE;
     v_memo_user_id       memo.user_id%TYPE;
@@ -75,7 +75,7 @@ CREATE OR REPLACE FUNCTION memo_write(
       -- fetch the old memo
       BEGIN
         SELECT memo.title, memo.memotext, memo.group_id, memo.user_id
-	  INTO STRICT v_old_memo_title, v_old_memotext, v_old_memo_group_id, v_memo_user_id
+	  INTO STRICT v_old_title, v_old_memotext, v_old_memo_group_id, v_memo_user_id
 	  FROM memo
          WHERE memo.id = p_memo_id;
       EXCEPTION
@@ -83,11 +83,12 @@ CREATE OR REPLACE FUNCTION memo_write(
         -- 3) Memo if specified, has to exist
         RAISE EXCEPTION 'memo % not found', p_memo_id USING ERRCODE = '02000'; -- no_data
       END;
-      IF (p_memo_title IS NOT DISTINCT FROM v_old_memo_title) 
-	  AND (p_memo_title IS NOT DISTINCT FROM v_old_memo_title) 
-	  AND (p_memo_title IS NOT DISTINCT FROM v_old_memo_title) 
-	  THEN
+      IF (p_memo_title IS NOT DISTINCT FROM v_old_title) 
+	  AND (p_memo_memotext IS NOT DISTINCT FROM v_old_memotext) 
+	  AND (p_memo_group_id IS NOT DISTINCT FROM v_old_memo_group_id)
+	 THEN
 	  -- 4) the previous memo is exactly the same, there's no need to save anything
+	  RAISE NOTICE 'Memo values for % did not change, not saving', p_memo_id;
         RETURN;
       END IF;
       IF p_memo_group_id IS NOT NULL AND v_memo_group_user_id <> v_memo_user_id THEN
@@ -104,10 +105,11 @@ CREATE OR REPLACE FUNCTION memo_write(
           NULL;
         ELSE
           -- modify the memo
+          NULL;
         END IF;
       ELSE
         -- requester is not owner, can only modify memotext
-        IF p_memo_title <> v_old_memo_title THEN
+        IF p_memo_title <> v_old_title THEN
           RAISE EXCEPTION 'user % (%) is not allowed to modify title for memo % because memo is owned by %',
             o_requester_id, p_username, p_memo_id, v_memo_user_id
             USING ERRCODE = '2F002'; -- modifying_sql_data_not_permitted
@@ -118,6 +120,7 @@ CREATE OR REPLACE FUNCTION memo_write(
             USING ERRCODE = '2F002'; -- modifying_sql_data_not_permitted
         END IF;
 	-- get permission for user
+	SELECT memo_group_user_access(p_memo_group_id, o_requester_id) INTO v_access;
 
         -- update the memo
         NULL;
