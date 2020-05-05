@@ -71,7 +71,7 @@ pub async fn search_memo(pool: Arc<Pool>, query: SearchMemoQuery, security: Secu
 
 pub async fn get_memo(pool: Arc<Pool>, id: i32, security: Security) -> Result<GetMemo, OrganizatorError>{
     let client = pool.get().await?;
-    let stmt = client.prepare_typed("select * from get_memo($1, $2);", &[Type::INT4, Type::VARCHAR]).await.unwrap();
+    let stmt = client.prepare_typed("select * from memo_read($1, $2);", &[Type::INT4, Type::VARCHAR]).await.unwrap();
 
     client.query(
         &stmt,

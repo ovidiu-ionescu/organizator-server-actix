@@ -1,5 +1,5 @@
-﻿DROP FUNCTION get_memo;
-CREATE OR REPLACE FUNCTION get_memo(p_memo_id integer, p_username users.username%TYPE,
+﻿DROP FUNCTION memo_read;
+CREATE OR REPLACE FUNCTION memo_read(p_memo_id integer, p_username users.username%TYPE,
   
     OUT o_id              memo.id%TYPE,
     OUT o_title           memo.title%TYPE,
