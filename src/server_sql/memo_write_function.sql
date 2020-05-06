@@ -24,8 +24,7 @@ CREATE OR REPLACE FUNCTION memo_write(
   
   OUT o_id             memo.id%TYPE,
   OUT o_requester_id   users.id%TYPE,
-  OUT o_requester_name users.username%TYPE,
-  OUT o_dbg int
+  OUT o_requester_name users.username%TYPE
   )
   AS $$
   DECLARE
@@ -33,10 +32,12 @@ CREATE OR REPLACE FUNCTION memo_write(
     v_old_title     p_memo_title%TYPE;
     v_old_memotext       p_memo_memotext%TYPE;
     v_old_memo_group_id  p_memo_group_id%TYPE;
+    v_old_saveuser_id    memo.saveuser_id%TYPE;
+    v_old_savetime       memo.savetime%TYPE;
     v_memo_user_id       memo.user_id%TYPE;
     v_memo_group_user_id memo_group.user_id%TYPE;
-    v_access  memo_acl.access%TYPE;
   BEGIN
+    o_requester_name := p_username;
     BEGIN
     -- 1) check the requester user exists
     SELECT users.id INTO STRICT o_requester_id FROM users WHERE users.username = p_username;
@@ -68,14 +69,16 @@ CREATE OR REPLACE FUNCTION memo_write(
       END IF;
 
       -- create the new memo
-      NULL;
+      o_id := nextval('memo_id_seq');
+      INSERT INTO memo (id, title, memotext, group_id, user_id, saveuser_id, savetime)
+      VALUES (o_id, p_memo_title, p_memo_memotext, p_memo_group_id, o_requester_id, o_requester_id, p_savetime);
     ELSE
       --update an existing memo
       
       -- fetch the old memo
       BEGIN
-        SELECT memo.title, memo.memotext, memo.group_id, memo.user_id
-	  INTO STRICT v_old_title, v_old_memotext, v_old_memo_group_id, v_memo_user_id
+        SELECT memo.title, memo.memotext, memo.group_id, memo.user_id, memo.saveuser_id, memo.savetime
+	  INTO STRICT v_old_title, v_old_memotext, v_old_memo_group_id, v_memo_user_id, v_old_saveuser_id, v_old_savetime
 	  FROM memo
          WHERE memo.id = p_memo_id;
       EXCEPTION
@@ -102,10 +105,19 @@ CREATE OR REPLACE FUNCTION memo_write(
         -- owner of the memo has full rights on the memo
         IF v_empty_content THEN
           -- delete the memo
-          NULL;
+          DELETE FROM memo WHERE id = p_memo_id;
         ELSE
           -- modify the memo
-          NULL;
+          o_id := p_memo_id;
+          INSERT INTO memo_history (memo_id, group_id, title, memotext, user_id, saveuser_id, savetime)
+          VALUES (p_memo_id, v_old_memo_group_id, v_old_title, v_old_memotext, v_memo_user_id, v_old_saveuser_id, v_old_savetime);
+          UPDATE memo SET 
+            group_id = p_memo_group_id,
+            title = p_memo_title,
+            memotext = p_memo_memotext,
+            saveuser_id = o_requester_id, -- same as user_id in this case
+            savetime = p_savetime
+          WHERE id = p_memo_id;
         END IF;
       ELSE
         -- requester is not owner, can only modify memotext
@@ -119,11 +131,18 @@ CREATE OR REPLACE FUNCTION memo_write(
             o_requester_id, p_username, p_memo_id, v_memo_user_id
             USING ERRCODE = '2F002'; -- modifying_sql_data_not_permitted
         END IF;
-	-- get permission for user
-	SELECT memo_group_user_access(p_memo_group_id, o_requester_id) INTO v_access;
+	-- check permission for user
+	PERFORM memo_group_user_access(p_memo_group_id, o_requester_id, 2);
 
         -- update the memo
-        NULL;
+          o_id := p_memo_id;
+          INSERT INTO memo_history (memo_id, group_id, title, memotext, user_id, saveuser_id, savetime)
+          VALUES (p_memo_id, v_old_memo_group_id, v_old_title, v_old_memotext, v_memo_user_id, v_old_saveuser_id, v_old_savetime);
+          UPDATE memo SET 
+            memotext = p_memo_memotext,
+            saveuser_id = o_requester_id,
+            savetime = p_savetime
+          WHERE id = p_memo_id;
       END IF;
       
     END IF;

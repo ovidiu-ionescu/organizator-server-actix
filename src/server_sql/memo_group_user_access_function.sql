@@ -1,7 +1,8 @@
 ﻿DROP FUNCTION memo_group_user_access;
 CREATE OR REPLACE FUNCTION memo_group_user_access (
   p_memo_group_id memo_group.id%TYPE,
-  p_user_id users.id%TYPE
+  p_user_id       users.id%TYPE,
+  p_min_required  memo_acl.access%TYPE
   )
   RETURNS memo_acl.access%TYPE AS $$
 DECLARE
@@ -17,7 +18,7 @@ BEGIN
      -- and user_group.user_id <> o_requester_id -- not owner of the group
      AND memo_acl.memo_group_id = p_memo_group_id;
 
-  IF v_access IS NULL THEN
+  IF v_access IS NULL OR (p_min_required IS NOT NULL AND v_access < p_min_required) THEN
     RAISE EXCEPTION 'User % does not have permissions on memo group %', p_user_id, p_memo_group_id
       USING ERRCODE = '2F003'; -- prohibited_sql_statement_attempted
   END IF;
