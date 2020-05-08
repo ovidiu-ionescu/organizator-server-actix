@@ -54,7 +54,7 @@ pub struct SearchMemoQuery {
     pub search: Option<String>,
 }
 
-#[post("/memo")]
+#[post("/memo/search")]
 pub async fn search_memo (
     qry: Form<SearchMemoQuery>,
     security: Security,
@@ -71,6 +71,21 @@ pub async fn search_memo (
 
 #[get("/memo/{id}")]
 pub async fn get_memo(id: actix_web::web::Path<i32>, security: Security, db_pool: Data<Pool>) -> Result<HttpResponse, OrganizatorError> {
-    let get_memo = db::get_memo(db_pool.into_inner(), id.into_inner(), security).await?;
-    Ok(HttpResponse::Ok().json(get_memo))
+    let memo = db::get_memo(db_pool.into_inner(), id.into_inner(), security).await?;
+    Ok(HttpResponse::Ok().json(memo))
+}
+
+#[derive(Deserialize)]
+pub struct MemoWrite {
+    pub memoId: Option<i32>,
+    pub text: Option<String>,
+    pub group_id: Option<i32>,
+}
+#[post("/memo")]
+pub async fn memo_write(memo_write: Form<MemoWrite>, security: Security, db_pool: Data<Pool>) -> Result<HttpResponse, OrganizatorError> {
+    let memo = db::write_memo(
+        db_pool.into_inner(),
+        memo_write.into_inner(),
+        security).await?;
+    Ok(HttpResponse::Ok().json(memo))
 }

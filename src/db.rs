@@ -1,10 +1,12 @@
-use crate::{errors::OrganizatorError, models::{ User, MemoTitle, GetMemo}};
-use crate::routes::{ GetUserQuery, GetAllMemoTitlesQuery, SearchMemoQuery,  };
+use crate::{errors::OrganizatorError, models::{ User, MemoTitle, GetMemo, GetWriteMemo}};
+use crate::routes::{ GetUserQuery, GetAllMemoTitlesQuery, SearchMemoQuery, MemoWrite };
 use deadpool_postgres::Pool;
 use tokio_pg_mapper::FromTokioPostgresRow;
 use tokio_postgres::types::Type;
 use std::sync::Arc;
 use crate::check_security_middleware::Security;
+use std::time::SystemTime;
+use std::convert::TryInto;
 
 impl GetUserQuery {
     pub fn get_statement(&self) -> &'static str {
@@ -79,5 +81,42 @@ pub async fn get_memo(pool: Arc<Pool>, id: i32, security: Security) -> Result<Ge
     ).await?
     .iter_mut()
     .map(move |row| GetMemo::from_row(row).map_err(OrganizatorError::from))
+    .next().unwrap()
+}
+
+fn split_memotekst<'a>(text: &'a str) -> (Option<&'a str>, Option<&'a str>) {
+    let line_end = text.chars().position(|c| c == '\n' || c == '\r');
+    match line_end {
+        None => (Some(text), Some("")),
+        Some(i) => (Some(&text[..i]), Some(&text[i..]))
+    }
+}
+
+pub async fn write_memo(pool: Arc<Pool>, memo: MemoWrite, security: Security) -> Result<GetWriteMemo, OrganizatorError> {
+    let client = pool.get().await?;
+    
+    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).expect("get millis error");
+    let millis: i64 = now.as_millis().try_into().unwrap();
+
+    let stmt = client.prepare_typed("select * from memo_write($1, $2, $3, $4, $5, $6);", 
+        &[Type::INT4, Type::VARCHAR, Type::VARCHAR, Type::INT8, Type::INT4, Type::VARCHAR]).await.unwrap();
+    
+    
+    let s = memo.text.unwrap_or("".to_string());
+    let b = split_memotekst(&s);
+
+    client.query(
+        &stmt,
+        &[
+            &memo.memoId,
+            &b.0,
+            &b.1,
+            &millis,
+            &memo.group_id,
+            &String::from(&security.user_name.clone().unwrap())
+        ]
+    ).await?
+    .iter_mut()
+    .map(move |row| GetWriteMemo::from_row(row).map_err(OrganizatorError::from))
     .next().unwrap()
 }

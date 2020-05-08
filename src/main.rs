@@ -43,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::get_memo_titles)
             .service(routes::search_memo)
             .service(routes::get_memo)
+            .service(routes::memo_write)
 
     })
     .bind("127.0.0.1:3002")?

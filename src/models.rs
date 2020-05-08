@@ -36,8 +36,8 @@ pub struct Memo {
     pub id:              i32,
     pub title:           Option<String>,
     pub memotext:        Option<String>,
-    pub savetime:        i64,
-    pub memo_group: MemoGroup,
+    pub savetime:        Option<i64>,
+    pub memo_group:      Option<MemoGroup>,
     pub user: MemoUser,
 }
 
@@ -55,16 +55,22 @@ pub struct GetMemo {
 
 impl From<&Row> for GetMemo {
     fn from(row: &Row) -> Self {
+        let group_id: Option<i32> = row.get("o_memo_group_id");
+        let memo_group = match group_id {
+            None => None,
+            Some(id) => Some(MemoGroup {
+                id: id,
+                name: row.get("o_memo_group_name"),
+            })
+        };
+
         Self {
             memo: Memo {
                 id: row.get("o_id"),
                 title: row.get("o_title"),
                 memotext: row.get("o_memotext"),
                 savetime: row.get("o_savetime"),
-                memo_group: MemoGroup {
-                    id: row.get("o_memo_group_id"),
-                    name: row.get("o_memo_group_name"),
-                },
+                memo_group: memo_group,
                 user: MemoUser {
                     id: row.get("o_user_id"),
                     name: row.get("o_username"),
@@ -83,3 +89,55 @@ impl GetMemo {
         Ok(Self::from(row))
     }
 }
+
+#[derive (Serialize)]
+pub struct GetWriteMemo {
+    memo: Option<Memo>,
+    user: MemoUser,
+}
+
+impl From<&Row> for GetWriteMemo {
+    fn from(row: &Row) -> Self {
+        // not all memos are assigned to groups
+        let group_id: Option<i32> = row.get("io_memo_group_id");
+        let memo_group = match group_id {
+            None => None,
+            Some(id) => Some(MemoGroup {
+                id: id,
+                name: row.get("o_memo_group_name"),
+            })
+        };
+
+        // when a memo gets deleted we don't get the id back
+        let memo_id: Option<i32> = row.get("io_memo_id");
+        let memo = match memo_id {
+            None => None,
+            Some(id) => Some(Memo {
+                id: id,
+                title: row.get("io_memo_title"),
+                memotext: row.get("io_memo_memotext"),
+                savetime: row.get("io_savetime"),
+                memo_group: memo_group,
+                user: MemoUser {
+                    id: row.get("o_user_id"),
+                    name: row.get("o_username"),
+                },
+            })
+        };
+
+        Self {
+            memo: memo,
+            user: MemoUser {
+                id: row.get("o_requester_id"),
+                name: row.get("io_requester_name"),
+            }
+        }
+    }
+}
+
+impl GetWriteMemo {
+    pub fn from_row(row: &Row) -> Result<Self, Error> {
+        Ok(Self::from(row))
+    }
+}
+
