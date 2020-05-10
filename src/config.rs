@@ -6,6 +6,7 @@ use deadpool_postgres::{RecyclingMethod, ManagerConfig};
 pub struct Config {
 	pub workers: usize,
 	pub pg: deadpool_postgres::Config,
+	pub bind: String,
 }
 
 impl Config {

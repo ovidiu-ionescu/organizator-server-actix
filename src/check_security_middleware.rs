@@ -31,12 +31,6 @@ impl Security {
     }
 }
 
-impl Drop for Security {
-    fn drop(&mut self) {
-        //println!("Dropping security");
-    }
-}
-
 impl FromRequest for Security {
     type Error = Error;
     type Future = Ready<Result<Security, Error>>;
@@ -48,6 +42,14 @@ impl FromRequest for Security {
     }
 }
 
+impl Security {
+    pub fn get_user_name(&self) -> &str {
+        match &self.user_name {
+            Some(s) => &s[3..],
+            None => "",
+        }
+    }
+}
 
 pub struct CheckSecurity;
 

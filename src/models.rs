@@ -25,10 +25,17 @@ pub struct MemoTitleList {
     pub user: User,
 }
 
-#[derive (Serialize)]
+
+#[derive(Serialize, PostgresMapper)]
+#[pg_mapper(table = "memo_group")]
 pub struct MemoGroup {
     pub id: i32,
     pub name: String,
+}
+
+#[derive (Serialize)]
+pub struct MemoGroupList {
+    pub memogroups: Vec<MemoGroup>,
 }
 
 #[derive (Serialize)]
