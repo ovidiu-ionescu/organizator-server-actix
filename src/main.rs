@@ -1,17 +1,22 @@
+use actix_service::Service;
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
+use futures::future::FutureExt;
 use tokio_postgres::NoTls;
 
 mod config;
 mod db;
 mod errors;
 mod models;
+mod password;
 mod routes;
 
 mod check_security_middleware;
 
 use crate::config::Config;
+use crate::password::generate_key;
 
+use actix_session::CookieSession;
 use actix_web::middleware::Logger;
 use env_logger::Env;
 
@@ -31,9 +36,12 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env().unwrap();
     let pool = config.pg.create_pool(NoTls).unwrap();
 
+    let mut key = [0; 32];
+    generate_key(&mut key);
     let server = HttpServer::new(move || {
         App::new()
             .wrap(CheckSecurity)
+            .wrap(CookieSession::signed(&key).secure(false))
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .data(pool.clone())
@@ -43,6 +51,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::get_memo)
             .service(routes::memo_write)
             .service(routes::get_memo_group)
+            .service(routes::login)
+            .service(routes::logout)
     })
     .bind(config.bind)?
     .workers(config.workers)

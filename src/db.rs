@@ -1,8 +1,8 @@
 use crate::check_security_middleware::Security;
-use crate::routes::{GetAllMemoTitlesQuery, GetUserQuery, MemoWrite, SearchMemoQuery};
+use crate::routes::{GetAllMemoTitlesQuery, GetUserQuery, MemoWrite, SearchMemoQuery, LoginQuery};
 use crate::{
     errors::OrganizatorError,
-    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User},
+    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User, Login},
 };
 use deadpool_postgres::Pool;
 use std::convert::TryInto;
@@ -195,4 +195,29 @@ pub async fn get_memo_groups(
         .iter()
         .map(|row| MemoGroup::from_row_ref(row).map_err(OrganizatorError::from))
         .collect()
+}
+
+impl LoginQuery {
+    pub fn get_statement(&self) -> &'static str {
+        include_str!("sql/login.sql")
+    }
+}
+
+pub async fn get_login (
+    pool: Arc<Pool>,
+    login_query: &LoginQuery,
+) -> Result<Login, OrganizatorError> {
+    let stmt = login_query.get_statement();
+    let client = pool.get().await?;
+    let prepared_stmt = client
+        .prepare_typed(&stmt, &[Type::VARCHAR])
+        .await
+        .unwrap();
+
+    client.query(&prepared_stmt, &[&login_query.j_username])
+    .await?
+    .iter()
+    .map(|row| Login::from_row_ref(row).map_err(OrganizatorError::from))
+    .next()
+    .unwrap()
 }

@@ -148,3 +148,11 @@ impl GetWriteMemo {
     }
 }
 
+#[derive(Serialize, PostgresMapper)]
+#[pg_mapper(table = "users")]
+pub struct Login {
+    pub id: i32,
+    pub username: Option<String>,
+    pub salt: Vec<u8>,
+    pub pbkdf2: Vec<u8>,
+}

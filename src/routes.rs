@@ -1,8 +1,8 @@
-use crate::{db, errors::OrganizatorError};
+use crate::{db, errors::OrganizatorError, password::verify_password};
 use actix_web::{
     get, post,
     web::{Data, Form, Query},
-    HttpResponse,
+    HttpRequest, HttpResponse,
 };
 use deadpool_postgres::Pool;
 use log::debug;
@@ -10,6 +10,8 @@ use serde::Deserialize;
 
 use crate::check_security_middleware::Security;
 use crate::models::{MemoGroupList, MemoTitleList, User};
+use actix_session::Session;
+
 
 #[derive(Deserialize)]
 pub struct GetUserQuery {
@@ -120,4 +122,34 @@ pub async fn get_memo_group(
     Ok(HttpResponse::Ok().json(MemoGroupList {
         memogroups: memogroups,
     }))
+}
+
+#[derive(Deserialize)]
+pub struct LoginQuery {
+    pub j_username: Option<String>,
+    pub j_password: Option<String>,
+}
+
+#[post("/login")]
+pub async fn login(
+    login_query_form: Form<LoginQuery>,
+    session: Session,
+    db_pool: Data<Pool>,
+    req: HttpRequest,
+) -> Result<HttpResponse, OrganizatorError> {
+    let login_query = login_query_form.into_inner();
+    let login = db::get_login(db_pool.into_inner(), &login_query).await?;
+    println!("check the password");
+    if verify_password(&login_query.j_password.unwrap(), &login) {
+        session.set("username", login_query.j_username.unwrap());
+        Ok(HttpResponse::NoContent().finish())
+    } else {
+        Ok(HttpResponse::Unauthorized().finish())
+    }
+}
+
+#[get("/logout")]
+pub async fn logout(session: Session) -> Result<HttpResponse, OrganizatorError>{
+    session.purge();
+    Ok(HttpResponse::NoContent().finish())
 }
