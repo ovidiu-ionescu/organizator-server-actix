@@ -1,8 +1,8 @@
-use crate::{db, errors::OrganizatorError, password::verify_password};
+use crate::{db, errors::OrganizatorError, password::{verify_password, compute_new_password, CREDENTIAL_LEN}};
 use actix_web::{
     get, post,
     web::{Data, Form, Query},
-    HttpRequest, HttpResponse,
+    HttpResponse,
 };
 use deadpool_postgres::Pool;
 use log::debug;
@@ -125,6 +125,7 @@ pub async fn get_memo_group(
 }
 
 #[derive(Deserialize)]
+#[derive(Debug)]
 pub struct LoginQuery {
     pub j_username: Option<String>,
     pub j_password: Option<String>,
@@ -135,13 +136,11 @@ pub async fn login(
     login_query_form: Form<LoginQuery>,
     session: Session,
     db_pool: Data<Pool>,
-    req: HttpRequest,
 ) -> Result<HttpResponse, OrganizatorError> {
     let login_query = login_query_form.into_inner();
-    let login = db::get_login(db_pool.into_inner(), &login_query).await?;
-    println!("check the password");
-    if verify_password(&login_query.j_password.unwrap(), &login) {
-        session.set("username", login_query.j_username.unwrap());
+    let user_login = db::get_login(&db_pool.into_inner(), &login_query).await?;
+    if verify_password(&login_query.j_password.unwrap(), &user_login) {
+        session.set("username", login_query.j_username.unwrap())?;
         Ok(HttpResponse::NoContent().finish())
     } else {
         Ok(HttpResponse::Unauthorized().finish())
@@ -151,5 +150,58 @@ pub async fn login(
 #[get("/logout")]
 pub async fn logout(session: Session) -> Result<HttpResponse, OrganizatorError>{
     session.purge();
+    Ok(HttpResponse::NoContent().finish())
+}
+
+#[derive(Deserialize)]
+pub struct ChangePasswordQuery {
+    pub username: Option<String>,
+    pub old_password: Option<String>,
+    pub new_password: Option<String>,
+}
+
+impl ChangePasswordQuery {
+    fn validate(&self) -> bool {
+        return 
+            self.old_password.is_some()
+            && self.new_password.is_some()
+    }
+}
+
+#[post("/change_password")]
+pub async fn change_password(
+    change_password_form: Form<ChangePasswordQuery>,
+    security: Security,
+    db_pool_data: Data<Pool>,
+) -> Result<HttpResponse, OrganizatorError> {
+    let change_password_form = change_password_form.into_inner();
+    if !change_password_form.validate() {
+        return Ok(HttpResponse::BadRequest().finish());
+    }
+    // verify existing password, applies to already authenticated user
+    let login_query = LoginQuery {
+        j_username: Some(String::from(security.get_user_name())),
+        j_password: None,
+    };
+    let db_pool = db_pool_data.into_inner();
+    let user_login = db::get_login(&db_pool, &login_query).await?;
+    if !verify_password(&change_password_form.old_password.unwrap(), &user_login) {
+        return Ok(HttpResponse::BadRequest().finish());
+    }
+    // Only root can change the password of another user
+    if user_login.id != 1 && change_password_form.username.is_some() {
+        return Ok(HttpResponse::BadRequest().finish());
+    }
+
+    let target_username: &str = &change_password_form.username.as_ref().map(String::as_str).unwrap_or(security.get_user_name());
+
+    // compute the new checksums
+    let mut salt: Vec<u8> = Vec::with_capacity(CREDENTIAL_LEN);
+    salt.resize(CREDENTIAL_LEN, 0u8);
+    let mut pbkdf2_hash: Vec<u8> = Vec::with_capacity(CREDENTIAL_LEN);
+    pbkdf2_hash.resize(CREDENTIAL_LEN, 0u8);
+    compute_new_password(&change_password_form.new_password.unwrap(), &mut salt, &mut pbkdf2_hash)?;
+    db::update_password(&db_pool, target_username, &salt, &pbkdf2_hash).await?;
+
     Ok(HttpResponse::NoContent().finish())
 }

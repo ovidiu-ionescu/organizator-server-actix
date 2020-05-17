@@ -6,7 +6,8 @@ use tokio_pg_mapper::Error as PGMError;
 use tokio_postgres::error::Error as PGError;
 
 use tokio_postgres::error::DbError;
-use tokio_postgres::error::SqlState;
+use ring::error::Unspecified;
+use actix_http::error::Error as ActixHttpError;
 
 use log::error;
 
@@ -16,6 +17,7 @@ pub enum OrganizatorError {
 	PGError(PGError),
 	PGMError(PGMError),
 	PoolError(PoolError),
+	Internal
 }
 impl std::error::Error for OrganizatorError {}
 
@@ -39,5 +41,19 @@ impl ResponseError for OrganizatorError {
 			}
 			_ => HttpResponse::InternalServerError().finish(),
 		}
+	}
+}
+
+impl From<Unspecified> for OrganizatorError {
+	fn from(unspecified_error: Unspecified) -> Self {
+		error!("Got an unspecified error {:#?}", &unspecified_error);
+		OrganizatorError::Internal
+	}
+}
+
+impl From<actix_http::error::Error> for OrganizatorError {
+	fn from (actix_error: ActixHttpError) -> Self {
+		error!("Got an actix error {:#?}", &actix_error);
+		OrganizatorError::Internal
 	}
 }

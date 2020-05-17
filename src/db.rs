@@ -11,6 +11,8 @@ use std::time::SystemTime;
 use tokio_pg_mapper::FromTokioPostgresRow;
 use tokio_postgres::types::Type;
 
+use log::debug;
+
 impl GetUserQuery {
     pub fn get_statement(&self) -> &'static str {
         include_str!("sql/get_user.sql")
@@ -181,7 +183,7 @@ pub async fn get_memo_groups(
     security: Security,
 ) -> Result<Vec<MemoGroup>, OrganizatorError> {
     let _stmt = MemoGroup::get_all_statement();
-    println!("{}", _stmt);
+    debug!("{}", _stmt);
 
     let client = pool.get().await?;
     let stmt = client
@@ -204,7 +206,7 @@ impl LoginQuery {
 }
 
 pub async fn get_login (
-    pool: Arc<Pool>,
+    pool: &Arc<Pool>,
     login_query: &LoginQuery,
 ) -> Result<Login, OrganizatorError> {
     let stmt = login_query.get_statement();
@@ -220,4 +222,19 @@ pub async fn get_login (
     .map(|row| Login::from_row_ref(row).map_err(OrganizatorError::from))
     .next()
     .unwrap()
+}
+
+pub async fn update_password (
+    pool: &Arc<Pool>,
+    username: &str,
+    salt: &Vec<u8>,
+    pbkdf2_hash: &Vec<u8>,
+) -> Result<(), OrganizatorError> {
+    let stmt = include_str!("sql/update_password.sql");
+    let client = pool.get().await?;
+    let prepared_stmt = client.prepare_typed(&stmt, &[Type::BYTEA, Type::BYTEA, Type::VARCHAR])
+        .await
+        .unwrap();
+    client.execute(&prepared_stmt, &[&salt, &pbkdf2_hash, &username]).await?;
+    Ok(())
 }

@@ -1,7 +1,5 @@
-use actix_service::Service;
 use actix_web::{App, HttpServer};
 use dotenv::dotenv;
-use futures::future::FutureExt;
 use tokio_postgres::NoTls;
 
 mod config;
@@ -53,6 +51,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::get_memo_group)
             .service(routes::login)
             .service(routes::logout)
+            .service(routes::change_password)
     })
     .bind(config.bind)?
     .workers(config.workers)
