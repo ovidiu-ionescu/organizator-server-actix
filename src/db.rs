@@ -12,6 +12,7 @@ use tokio_pg_mapper::FromTokioPostgresRow;
 use tokio_postgres::types::Type;
 
 use log::debug;
+use uuid::Uuid;
 
 impl GetUserQuery {
     pub fn get_statement(&self) -> &'static str {
@@ -124,6 +125,13 @@ fn split_memotekst<'a>(text: &'a str) -> (Option<&'a str>, Option<&'a str>) {
     }
 }
 
+fn get_millis() -> i64 {
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("get millis error");
+    now.as_millis().try_into().unwrap()
+}
+
 pub async fn write_memo(
     pool: Arc<Pool>,
     memo: MemoWrite,
@@ -131,10 +139,7 @@ pub async fn write_memo(
 ) -> Result<GetWriteMemo, OrganizatorError> {
     let client = pool.get().await?;
 
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("get millis error");
-    let millis: i64 = now.as_millis().try_into().unwrap();
+    let millis = get_millis();
 
     let stmt = client
         .prepare_typed(
@@ -236,5 +241,22 @@ pub async fn update_password (
         .await
         .unwrap();
     client.execute(&prepared_stmt, &[&salt, &pbkdf2_hash, &username]).await?;
+    Ok(())
+}
+
+pub async fn insert_filestore (
+    pool: &Arc<Pool>,
+    id: &Uuid,
+    username: &str,
+    filename: &str,
+    memo_group_id: &Option<i32>,
+) -> Result<(), OrganizatorError> {
+    let stmt = include_str!("sql/insert_filestore.sql");
+    let client = pool.get().await?;
+    let prepared_stmt = client.prepare_typed(&stmt, &[Type::UUID, Type::VARCHAR, Type::VARCHAR, Type::INT4, Type::INT8])
+        .await
+        .unwrap();
+    let millis = get_millis();
+    client.execute(&prepared_stmt, &[&id, &username, &filename, &memo_group_id, &millis]).await?;
     Ok(())
 }

@@ -11,17 +11,21 @@ edition = "2018"
 actix-web = "*"
 serde = { version = "1", features = ["derive"] }
 actix-rt = "1"
-tokio-postgres = "0.5"
+tokio-postgres = { version = "0.5", features = ["with-uuid-0_8"] }
 env_logger = "0.7"
 deadpool-postgres = "0.5.5"
-tokio-pg-mapper = { version = "0.1.4", features = ["derive"] }
+tokio-pg-mapper = { version = "0.1.7", features = ["derive"] }
 derive_more = "0.99"
 dotenv = "0.15.0"
 config = "0.10"
 log = "*"
 actix-service = "*"
 actix-session="*"
+actix-multipart="*"
+actix-threadpool="*"
+sanitize-filename="*"
 futures = "*"
 ring="*"
 data-encoding="*"
 actix-http="*"
+uuid = { version = "0.8.1", features = ["serde", "v4"]}

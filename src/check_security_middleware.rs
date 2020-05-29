@@ -99,7 +99,7 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        if req.path() != "/login" {
+        if req.path() != "/login" && req.path() != "/version" {
             let user_name_res = req.get_session().get::<String>("username");
             let mut found_user = false;
             if let Ok(o) = user_name_res {

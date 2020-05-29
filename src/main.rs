@@ -11,7 +11,7 @@ mod routes;
 
 mod check_security_middleware;
 
-use crate::config::Config;
+use crate::config::{Config, FileUploadConfig };
 use crate::password::generate_key;
 
 use actix_session::CookieSession;
@@ -29,10 +29,12 @@ use check_security_middleware::CheckSecurity;
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     //env_logger::init();
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
 
     let config = Config::from_env().unwrap();
+    env_logger::from_env(Env::default().default_filter_or(config.log_level)).init();
+
     let pool = config.pg.create_pool(NoTls).unwrap();
+    let file_upload_config = FileUploadConfig {dir: config.file_upload_dir};
 
     let mut key = [0; 32];
     generate_key(&mut key);
@@ -43,6 +45,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .data(pool.clone())
+            .data(file_upload_config.clone())
             .service(routes::get_user)
             .service(routes::get_memo_titles)
             .service(routes::search_memo)
@@ -52,6 +55,9 @@ async fn main() -> std::io::Result<()> {
             .service(routes::login)
             .service(routes::logout)
             .service(routes::change_password)
+            .service(routes::version)
+            .service(routes::upload_file)
+            .service(routes::file_auth)
     })
     .bind(config.bind)?
     .workers(config.workers)

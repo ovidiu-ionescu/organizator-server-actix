@@ -7,6 +7,8 @@ pub struct Config {
 	pub workers: usize,
 	pub pg: deadpool_postgres::Config,
 	pub bind: String,
+	pub log_level: String,
+	pub file_upload_dir: String,
 }
 
 impl Config {
@@ -17,5 +19,15 @@ impl Config {
 		cfg.pg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
 		// println!("dbname: {:#?}", &cfg.pg);
 		Ok(cfg)
+	}
+}
+
+pub struct FileUploadConfig {
+	pub dir: String,
+}
+
+impl Clone for FileUploadConfig {
+	fn clone(&self) -> Self {
+		FileUploadConfig { dir: self.dir.clone() }
 	}
 }

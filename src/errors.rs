@@ -10,6 +10,7 @@ use ring::error::Unspecified;
 use actix_http::error::Error as ActixHttpError;
 
 use log::error;
+use actix_threadpool;
 
 #[derive(Display, From, Debug)]
 pub enum OrganizatorError {
@@ -17,7 +18,8 @@ pub enum OrganizatorError {
 	PGError(PGError),
 	PGMError(PGMError),
 	PoolError(PoolError),
-	Internal
+	Internal,
+	BlockingError,
 }
 impl std::error::Error for OrganizatorError {}
 
@@ -52,8 +54,22 @@ impl From<Unspecified> for OrganizatorError {
 }
 
 impl From<actix_http::error::Error> for OrganizatorError {
-	fn from (actix_error: ActixHttpError) -> Self {
-		error!("Got an actix error {:#?}", &actix_error);
+	fn from (error: ActixHttpError) -> Self {
+		error!("Got an actix error {:#?}", &error);
 		OrganizatorError::Internal
+	}
+}
+
+impl From<actix_threadpool::BlockingError<std::io::Error>> for OrganizatorError {
+	fn from (error: actix_threadpool::BlockingError<std::io::Error>) -> Self {
+		error!("Got a blocking error {:#?}", error);
+		OrganizatorError::BlockingError
+	}
+}
+
+impl From<std::string::FromUtf8Error> for OrganizatorError {
+	fn from (error: std::string::FromUtf8Error) -> Self {
+		error!("Got a utf8 error {:#?}", error);
+		OrganizatorError::BlockingError
 	}
 }

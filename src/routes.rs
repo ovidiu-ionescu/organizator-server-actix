@@ -1,16 +1,27 @@
-use crate::{db, errors::OrganizatorError, password::{verify_password, compute_new_password, CREDENTIAL_LEN}};
+use crate::{
+    db,
+    errors::OrganizatorError,
+    password::{compute_new_password, verify_password, CREDENTIAL_LEN},
+};
 use actix_web::{
-    get, post,
+    get, post, web,
     web::{Data, Form, Query},
     HttpResponse,
 };
 use deadpool_postgres::Pool;
 use log::debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::check_security_middleware::Security;
 use crate::models::{MemoGroupList, MemoTitleList, User};
+use actix_multipart::Multipart;
 use actix_session::Session;
+use futures::{StreamExt, TryStreamExt};
+
+use std::io::Write;
+
+use uuid::Uuid;
+use crate::config::{FileUploadConfig };
 
 
 #[derive(Deserialize)]
@@ -124,8 +135,7 @@ pub async fn get_memo_group(
     }))
 }
 
-#[derive(Deserialize)]
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub struct LoginQuery {
     pub j_username: Option<String>,
     pub j_password: Option<String>,
@@ -148,7 +158,7 @@ pub async fn login(
 }
 
 #[get("/logout")]
-pub async fn logout(session: Session) -> Result<HttpResponse, OrganizatorError>{
+pub async fn logout(session: Session) -> Result<HttpResponse, OrganizatorError> {
     session.purge();
     Ok(HttpResponse::NoContent().finish())
 }
@@ -162,9 +172,7 @@ pub struct ChangePasswordQuery {
 
 impl ChangePasswordQuery {
     fn validate(&self) -> bool {
-        return 
-            self.old_password.is_some()
-            && self.new_password.is_some()
+        return self.old_password.is_some() && self.new_password.is_some();
     }
 }
 
@@ -193,15 +201,129 @@ pub async fn change_password(
         return Ok(HttpResponse::BadRequest().finish());
     }
 
-    let target_username: &str = &change_password_form.username.as_ref().map(String::as_str).unwrap_or(security.get_user_name());
+    let target_username: &str = &change_password_form
+        .username
+        .as_ref()
+        .map(String::as_str)
+        .unwrap_or(security.get_user_name());
 
     // compute the new checksums
     let mut salt: Vec<u8> = Vec::with_capacity(CREDENTIAL_LEN);
     salt.resize(CREDENTIAL_LEN, 0u8);
     let mut pbkdf2_hash: Vec<u8> = Vec::with_capacity(CREDENTIAL_LEN);
     pbkdf2_hash.resize(CREDENTIAL_LEN, 0u8);
-    compute_new_password(&change_password_form.new_password.unwrap(), &mut salt, &mut pbkdf2_hash)?;
+    compute_new_password(
+        &change_password_form.new_password.unwrap(),
+        &mut salt,
+        &mut pbkdf2_hash,
+    )?;
     db::update_password(&db_pool, target_username, &salt, &pbkdf2_hash).await?;
 
     Ok(HttpResponse::NoContent().finish())
 }
+
+#[get("/version")]
+pub async fn version() -> Result<HttpResponse, OrganizatorError> {
+    Ok(HttpResponse::Ok()
+        .content_type("plain/text")
+        .header("X-Version", "sample")
+        .body("1.0.1\n"))
+}
+
+#[derive(Deserialize)]
+pub struct UploadFileQuery {
+    pub id: Option<i32>,
+}
+
+fn extension(filename: &str) -> Option<&str> {
+    let dot = filename.rfind('.');
+    match dot {
+        Some(i) => Some(&filename[i..]),
+        None => None,
+    }
+}
+
+#[cfg(test)]
+mod test_extension {
+    #[test]
+    fn test_extension() {
+        assert_eq!(super::extension("aha.txt"), Some(".txt"));
+        assert_eq!(super::extension("no dot"), None);
+        assert_eq!(super::extension("more dots...txt"), Some(".txt"));
+    }
+}
+
+#[derive(Serialize)]
+struct FileUpload {
+    filename: String,
+}
+
+#[post("/upload")]
+pub async fn upload_file(
+    mut payload: Multipart, 
+    file_upload_config_data: Data<FileUploadConfig>,
+    security: Security,
+    db_pool_data: Data<Pool>,
+
+) -> Result<HttpResponse, OrganizatorError> {
+    let db_pool = db_pool_data.into_inner();
+
+
+    let file_upload_config = file_upload_config_data.into_inner();
+
+    let mut memo_group_id: Option<i32> = None;
+
+    let mut res = FileUpload{ filename: String::new() };
+
+    while let Ok(Some(mut field)) = payload.try_next().await {
+        let content_type = field.content_disposition().unwrap();
+        let name = content_type.get_name().unwrap();
+        // if let Some(filename) = content_type.get_filename() {
+        match content_type.get_filename() {
+            Some(filename) => {
+                // extract the extension
+                let file_uuid = Uuid::new_v4();
+                let ext = extension(&filename);
+                let filepath = format!("{}/{}{}", file_upload_config.dir, file_uuid, ext.unwrap_or(""));
+                res = FileUpload { filename: format!("{}{}", file_uuid, ext.unwrap_or("")) };
+                
+
+                // let filepath = format!("./tmp/{}", sanitize_filename::sanitize(&filename));
+                // File::create is blocking operation, use threadpool
+                let mut f = web::block(|| std::fs::File::create(filepath))
+                    .await
+                    .unwrap();
+                // Field in turn is stream of *Bytes* object
+                while let Some(chunk) = field.next().await {
+                    let data = chunk.unwrap();
+                    // filesystem operations are blocking, we have to use threadpool
+                    f = web::block(move || f.write_all(&data).map(|_| f)).await?;
+                }
+                debug!("memo_group_id for file: {:#?}", &memo_group_id);
+                // add the database entry
+                db::insert_filestore(&db_pool, &file_uuid, security.get_user_name(), &filename, &memo_group_id).await?;
+            }
+            None => {
+                let mut val = String::with_capacity(20);
+                while let Some(chunk) = field.next().await {
+                    let data = chunk.unwrap();
+                    val.push_str(&String::from_utf8(data.to_vec())?);
+                }
+                if name == "memo_group_id" && val.len() > 0 {
+                    memo_group_id = Some(val.parse::<i32>().unwrap());
+                debug!("just parsed memo_group_id for file: {:#?}", &memo_group_id);
+                }
+                println!("Parameter {}, value {}", name, &val);
+            }
+        }
+        // let filename = content_type.get_filename().unwrap();
+    }
+    Ok(HttpResponse::Ok().json(res))
+}
+
+#[get("/file_auth")]
+pub async fn file_auth() -> Result<HttpResponse, OrganizatorError> {
+    Ok(HttpResponse::NoContent().finish())
+    //Ok(HttpResponse::Unauthorized().finish())
+}
+
