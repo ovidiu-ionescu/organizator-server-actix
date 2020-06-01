@@ -156,3 +156,38 @@ pub struct Login {
     pub salt: Vec<u8>,
     pub pbkdf2: Vec<u8>,
 }
+
+/*
+ * File permissions is a bit overkill, most data coming back is not used
+ */
+
+#[derive (Serialize)]
+pub struct GetFilePermissions {
+    pub requester: MemoUser,
+    pub user: MemoUser,
+    pub o_memo_group_id: Option<i32>,
+    pub access: i32,
+}
+
+impl From<&Row> for GetFilePermissions {
+    fn from(row: &Row) -> Self {
+        Self {
+            requester: MemoUser {
+                id: row.get("o_requester_id"),
+                name: row.get("io_requester_name")
+            },
+            user: MemoUser {
+                id: row.get("o_user_id"),
+                name: row.get("o_username")
+            },
+            o_memo_group_id: row.get("o_memo_group_id"),
+            access: row.get("o_access")
+        }
+    }
+}
+
+impl GetFilePermissions {
+    pub fn from_row(row:&Row) -> Result<Self, Error> {
+        Ok(Self::from(row))
+    }
+}

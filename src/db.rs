@@ -2,7 +2,7 @@ use crate::check_security_middleware::Security;
 use crate::routes::{GetAllMemoTitlesQuery, GetUserQuery, MemoWrite, SearchMemoQuery, LoginQuery};
 use crate::{
     errors::OrganizatorError,
-    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User, Login},
+    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User, Login, GetFilePermissions},
 };
 use deadpool_postgres::Pool;
 use std::convert::TryInto;
@@ -117,13 +117,35 @@ pub async fn get_memo(
         .unwrap()
 }
 
+
+
 fn split_memotekst<'a>(text: &'a str) -> (Option<&'a str>, Option<&'a str>) {
-    let line_end = text.chars().position(|c| c == '\n' || c == '\r');
+    let line_end = text.find(|c| c == '\n' || c == '\r');
     match line_end {
         None => (Some(text), Some("")),
         Some(i) => (Some(&text[..i]), Some(&text[i..])),
     }
 }
+
+#[cfg(test)]
+mod test_memotekst {
+    #[test]
+    fn simple_split() {
+        let body = "first\nsecond";
+        let split = super::split_memotekst(&body);
+        assert_eq!(Some("first"), split.0);
+        assert_eq!(Some("\nsecond"), split.1);
+    }
+
+    #[test]
+    fn utf_split() {
+        let body = "ă\nx";
+        let split = super::split_memotekst(&body);
+        assert_eq!(Some("ă"), split.0);
+        assert_eq!(Some("\nx"), split.1);
+    }
+}
+
 
 fn get_millis() -> i64 {
     let now = SystemTime::now()
@@ -259,4 +281,23 @@ pub async fn insert_filestore (
     let millis = get_millis();
     client.execute(&prepared_stmt, &[&id, &username, &filename, &memo_group_id, &millis]).await?;
     Ok(())
+}
+
+pub async fn file_permissions (
+    pool: &Arc<Pool>,
+    id: &Uuid,
+    username: &str,
+    min_required: Option<i32>,
+) -> Result<GetFilePermissions, OrganizatorError> {
+    let stmt = include_str!("sql/get_file_security.sql");
+    let client = pool.get().await?;
+    let prepared_stmt = client
+    .prepare_typed(&stmt, &[Type::UUID, Type::VARCHAR, Type::INT4])
+    .await
+    .unwrap();
+    client.query(&prepared_stmt, &[&id, &username, &min_required]).await?
+    .iter()
+    .map(|row| GetFilePermissions::from_row(&row).map_err(OrganizatorError::from))
+    .next()
+    .unwrap()
 }

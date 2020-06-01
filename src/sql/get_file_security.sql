@@ -1,0 +1,1 @@
+SELECT * FROM file_user_access($1, $2, $3);

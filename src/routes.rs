@@ -6,7 +6,7 @@ use crate::{
 use actix_web::{
     get, post, web,
     web::{Data, Form, Query},
-    HttpResponse,
+    HttpRequest, HttpResponse,
 };
 use deadpool_postgres::Pool;
 use log::debug;
@@ -21,6 +21,7 @@ use futures::{StreamExt, TryStreamExt};
 use std::io::Write;
 
 use uuid::Uuid;
+use std::str::FromStr;
 use crate::config::{FileUploadConfig };
 
 
@@ -243,6 +244,15 @@ fn extension(filename: &str) -> Option<&str> {
     }
 }
 
+fn without_extension(filename: &str) -> &str {
+    let dot = filename.rfind('.').unwrap_or(filename.len());
+    let slash = filename.rfind('/');
+    match slash {
+        Some(s) => &filename[s + 1 .. dot],
+        None => &filename[0 .. dot]
+    }
+}
+
 #[cfg(test)]
 mod test_extension {
     #[test]
@@ -250,6 +260,13 @@ mod test_extension {
         assert_eq!(super::extension("aha.txt"), Some(".txt"));
         assert_eq!(super::extension("no dot"), None);
         assert_eq!(super::extension("more dots...txt"), Some(".txt"));
+    }
+
+    #[test]
+    fn test_filename() {
+        assert_eq!(super::without_extension("file.txt"), "file");
+        assert_eq!(super::without_extension("/path/file.txt"), "file");
+        assert_eq!(super::without_extension("file..txt"), "file.");
     }
 }
 
@@ -322,8 +339,21 @@ pub async fn upload_file(
 }
 
 #[get("/file_auth")]
-pub async fn file_auth() -> Result<HttpResponse, OrganizatorError> {
+pub async fn file_auth(
+    request: HttpRequest,
+    security: Security,
+    db_pool: Data<Pool>,
+
+) -> Result<HttpResponse, OrganizatorError> {
+    let req_headers = request.headers();
+    let uri = req_headers.get("X-Original-URI").unwrap().to_str().unwrap();
+    debug!("Checking security for file {}", uri);
+    let filename = without_extension(uri);
+
+    let uuid = Uuid::from_str(&filename).unwrap();
+    let _permissions = db::file_permissions(&db_pool.into_inner(), &uuid, security.get_user_name(), Some(1)).await?;
     Ok(HttpResponse::NoContent().finish())
+    //Ok(HttpResponse::NoContent().finish())
     //Ok(HttpResponse::Unauthorized().finish())
 }
 
