@@ -47,9 +47,9 @@ CREATE OR REPLACE FUNCTION memo_write(
     END;
 
     BEGIN
-    -- fetch the owner of the memo group
+    -- fetch the owner of the memo group (also the name of the group)
       IF io_memo_group_id IS NOT NULL THEN
-        SELECT user_id INTO STRICT v_memo_group_user_id FROM memo_group WHERE id = io_memo_group_id;
+        SELECT user_id, name INTO STRICT v_memo_group_user_id, o_memo_group_name FROM memo_group WHERE id = io_memo_group_id;
       END IF;
     EXCEPTION 
       WHEN NO_DATA_FOUND THEN
