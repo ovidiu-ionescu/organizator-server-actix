@@ -39,13 +39,12 @@ CREATE OR REPLACE FUNCTION file_user_access(
     -- if we are here the requester is not the file owner
     IF o_memo_group__id IS NULL THEN
       IF i_min_requred IS NOT NULL THEN
-     TODO       RAISE EXCEPTION 'User % does not have permissions on file %', p_user_id, p_memo_group_id
-      USING ERRCODE = '2F003'; -- prohibited_sql_statement_attempted
-
+        RAISE EXCEPTION 'User % does not have permissions on file %', io_requester_name, i_id
+          USING ERRCODE = '2F003'; -- prohibited_sql_statement_attempted
       ELSE
         o_access := 0;
         RETURN;
-      END IF
+      END IF;
       
     END IF;
     -- check permission for user

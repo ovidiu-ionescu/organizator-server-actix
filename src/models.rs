@@ -44,8 +44,8 @@ pub struct Memo {
     pub title:           Option<String>,
     pub memotext:        Option<String>,
     pub savetime:        Option<i64>,
-    pub memo_group:      Option<MemoGroup>,
-    pub user: MemoUser,
+    pub memogroup:       Option<MemoGroup>,
+    pub user:            MemoUser,
 }
 
 #[derive (Serialize)]
@@ -77,7 +77,7 @@ impl From<&Row> for GetMemo {
                 title: row.get("o_title"),
                 memotext: row.get("o_memotext"),
                 savetime: row.get("o_savetime"),
-                memo_group: memo_group,
+                memogroup: memo_group,
                 user: MemoUser {
                     id: row.get("o_user_id"),
                     name: row.get("o_username"),
@@ -124,7 +124,7 @@ impl From<&Row> for GetWriteMemo {
                 title: row.get("io_memo_title"),
                 memotext: row.get("io_memo_memotext"),
                 savetime: row.get("io_savetime"),
-                memo_group: memo_group,
+                memogroup: memo_group,
                 user: MemoUser {
                     id: row.get("o_user_id"),
                     name: row.get("o_username"),

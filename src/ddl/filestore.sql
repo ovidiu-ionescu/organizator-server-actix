@@ -1,7 +1,8 @@
-﻿CREATE TABLE filestore (
+﻿drop table filestore;
+CREATE TABLE filestore (
   id UUID PRIMARY KEY, 
   user_id INTEGER NOT NULL, 
-  name VARCHAR(255), 
+  filename VARCHAR(255), 
   memo_group_id INTEGER,
   uploaded_on BIGINT,
   CONSTRAINT filestore_user_id_fkey FOREIGN KEY (user_id)

@@ -228,7 +228,7 @@ pub async fn version() -> Result<HttpResponse, OrganizatorError> {
     Ok(HttpResponse::Ok()
         .content_type("plain/text")
         .header("X-Version", "sample")
-        .body("1.0.1\n"))
+        .body("1.0.2\n"))
 }
 
 #[derive(Deserialize)]
