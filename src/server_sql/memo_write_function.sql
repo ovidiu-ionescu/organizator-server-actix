@@ -135,7 +135,7 @@ CREATE OR REPLACE FUNCTION memo_write(
             USING ERRCODE = '2F002'; -- modifying_sql_data_not_permitted
         END IF;
 	-- check permission for user
-	PERFORM memo_group_user_access(io_memo_group_id, o_requester_id, 2);
+	PERFORM memo_group_user_access(v_old_memo_group_id, o_requester_id, 2);
 
         -- update the memo
           INSERT INTO memo_history (memo_id, group_id, title, memotext, user_id, saveuser_id, savetime)
