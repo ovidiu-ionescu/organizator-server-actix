@@ -357,3 +357,12 @@ pub async fn file_auth(
     //Ok(HttpResponse::Unauthorized().finish())
 }
 
+#[get("/explicit_permissions/{id}")]
+pub async fn explicit_permissions(
+    id: actix_web::web::Path<i32>,
+    security: Security,
+    db_pool: Data<Pool>,
+) -> Result<HttpResponse, OrganizatorError> {
+    let permissions = db::explicit_permissions(&db_pool.into_inner(), security.get_user_name(), id.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(permissions))
+}

@@ -58,6 +58,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::version)
             .service(routes::upload_file)
             .service(routes::file_auth)
+            .service(routes::explicit_permissions)
     })
     .bind(config.bind)?
     .workers(config.workers)

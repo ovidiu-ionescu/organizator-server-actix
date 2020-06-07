@@ -191,3 +191,15 @@ impl GetFilePermissions {
         Ok(Self::from(row))
     }
 }
+
+#[derive (Serialize, PostgresMapper)]
+#[pg_mapper(table = "permissions")]
+pub struct ExplicitPermission {
+    pub memo_group_id:   i32,
+    pub memo_group_name: Option<String>,
+    pub user_group_id:   i32,
+    pub user_group_name: Option<String>,
+    pub user_id:         i32,
+    pub username:        Option<String>,
+    pub access:          i32,
+}

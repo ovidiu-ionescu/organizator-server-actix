@@ -2,7 +2,7 @@ use crate::check_security_middleware::Security;
 use crate::routes::{GetAllMemoTitlesQuery, GetUserQuery, MemoWrite, SearchMemoQuery, LoginQuery};
 use crate::{
     errors::OrganizatorError,
-    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User, Login, GetFilePermissions},
+    models::{GetMemo, GetWriteMemo, MemoGroup, MemoTitle, User, Login, GetFilePermissions, ExplicitPermission},
 };
 use deadpool_postgres::Pool;
 use std::convert::TryInto;
@@ -300,4 +300,21 @@ pub async fn file_permissions (
     .map(|row| GetFilePermissions::from_row(&row).map_err(OrganizatorError::from))
     .next()
     .unwrap()
+}
+
+pub async fn explicit_permissions(
+    pool: &Arc<Pool>,
+    username: &str,
+    id: i32
+) -> Result<Vec<ExplicitPermission>, OrganizatorError> {
+    let stmt = include_str!("sql/explicit_permissions.sql");
+    let client = pool.get().await?;
+    let prepared_stmt = client
+    .prepare_typed(&stmt, &[Type::INT4, Type::VARCHAR])
+    .await
+    .unwrap();
+    client.query(&prepared_stmt, &[&id, &username]).await?
+    .iter()
+    .map(|row| ExplicitPermission::from_row_ref(row).map_err(OrganizatorError::from))
+    .collect()
 }
