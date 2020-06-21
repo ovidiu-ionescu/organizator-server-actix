@@ -4,12 +4,12 @@ use crate::{
     password::{compute_new_password, verify_password, CREDENTIAL_LEN},
 };
 use actix_web::{
-    get, post, web,
+    get, post, put, web,
     web::{Data, Form, Query},
     HttpRequest, HttpResponse,
 };
 use deadpool_postgres::Pool;
-use log::debug;
+use log::{ debug, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::check_security_middleware::Security;
@@ -275,7 +275,7 @@ struct FileUpload {
     filename: String,
 }
 
-#[post("/upload")]
+#[put("/upload")]
 pub async fn upload_file(
     mut payload: Multipart, 
     file_upload_config_data: Data<FileUploadConfig>,
@@ -289,8 +289,10 @@ pub async fn upload_file(
     let file_upload_config = file_upload_config_data.into_inner();
 
     let mut memo_group_id: Option<i32> = None;
+    let mut end_parameter: Option<i32> = None;
 
     let mut res = FileUpload{ filename: String::new() };
+    let mut processed = false;
 
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_type = field.content_disposition().unwrap();
@@ -303,7 +305,7 @@ pub async fn upload_file(
                 let ext = extension(&filename);
                 let filepath = format!("{}/{}{}", file_upload_config.dir, file_uuid, ext.unwrap_or(""));
                 res = FileUpload { filename: format!("{}{}", file_uuid, ext.unwrap_or("")) };
-                
+                processed = true;
 
                 // let filepath = format!("./tmp/{}", sanitize_filename::sanitize(&filename));
                 // File::create is blocking operation, use threadpool
@@ -328,12 +330,18 @@ pub async fn upload_file(
                 }
                 if name == "memo_group_id" && val.len() > 0 {
                     memo_group_id = Some(val.parse::<i32>().unwrap());
-                debug!("just parsed memo_group_id for file: {:#?}", &memo_group_id);
+                    debug!("just parsed memo_group_id for file: {:#?}", &memo_group_id);
                 }
-                println!("Parameter {}, value {}", name, &val);
+                if name == "end_parameter" && val.len() > 0 {
+                    end_parameter = Some(val.parse::<i32>().unwrap());
+                }
+                debug!("Parameter {}, value {}", name, &val);
             }
         }
         // let filename = content_type.get_filename().unwrap();
+    }
+    if !processed {
+        warn!("Didn't find a file to process, memo_group_id: {:#?}, end_parameter: {:#?}", &memo_group_id, &end_parameter);
     }
     Ok(HttpResponse::Ok().json(res))
 }
