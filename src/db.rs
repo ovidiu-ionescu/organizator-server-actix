@@ -36,6 +36,18 @@ pub async fn get_user(pool: Arc<Pool>, query: GetUserQuery) -> Result<User, Orga
         .unwrap()
 }
 
+pub async fn get_users(pool: Arc<Pool>) -> Result<Vec<User>, OrganizatorError> {
+    let sql_stmt = include_str!("sql/get_all_users.sql");
+    let client = pool.get().await?;
+    let stmt = client.prepare_typed(&sql_stmt, &[]).await?;
+    client
+        .query(&stmt, &[])
+        .await?
+        .iter()
+        .map(|row| User::from_row_ref(row).map_err(OrganizatorError::from))
+        .collect()
+}
+
 impl GetAllMemoTitlesQuery {
     pub fn get_statement() -> &'static str {
         include_str!("sql/get_all_memo_titles.sql")
@@ -184,7 +196,7 @@ pub async fn write_memo(
         .query(
             &stmt,
             &[
-                &memo.memoId,
+                &memo.memo_id,
                 &b.0,
                 &b.1,
                 &millis,

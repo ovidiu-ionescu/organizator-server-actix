@@ -47,6 +47,7 @@ async fn main() -> std::io::Result<()> {
             .data(pool.clone())
             .data(file_upload_config.clone())
             .service(routes::get_user)
+            .service(routes::get_users)
             .service(routes::get_memo_titles)
             .service(routes::search_memo)
             .service(routes::get_memo)

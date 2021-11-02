@@ -48,6 +48,15 @@ pub async fn get_user(
     Ok(HttpResponse::Ok().json(user))
 }
 
+#[get("/user")]
+pub async fn get_users(
+    db_pool: Data<Pool>,
+) -> Result<HttpResponse, OrganizatorError> {
+    let users = db::get_users(db_pool.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(users))
+}
+
+
 #[derive(Deserialize)]
 pub struct GetAllMemoTitlesQuery {
     pub username: Option<String>,
@@ -111,7 +120,8 @@ pub async fn get_memo(
 
 #[derive(Deserialize)]
 pub struct MemoWrite {
-    pub memoId: Option<i32>,
+    #[serde(alias = "memoId")]
+    pub memo_id: Option<i32>,
     pub text: Option<String>,
     pub group_id: Option<i32>,
 }
@@ -177,7 +187,7 @@ impl ChangePasswordQuery {
     }
 }
 
-#[post("/change_password")]
+#[put("/change_password")]
 pub async fn change_password(
     change_password_form: Form<ChangePasswordQuery>,
     security: Security,
